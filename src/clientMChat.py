@@ -44,8 +44,6 @@ while True:
     if message:
         # Шифрую сообщение симметрично, используя модуль Fernet.
         # Дешифровка будет во втором while
-        key = Fernet.generate_key()
-        cipher_suite = Fernet(key)
         # Encode message to bytes, prepare header and convert to bytes, like for username above, then send
         message = message.encode('utf-8')
         encypted_message = cipher_suite.encrypt(message)
@@ -75,7 +73,7 @@ while True:
             message_length = int(message_header.decode('utf-8').strip())
             message = client_socket.recv(message_length).decode('utf-8')
 
-            decrypted_message = cipher_suite.decrypt(message)
+            decrypted_message = cipher_suite.decrypt(message).decode('utf-8')
 
             # Print message
             print(f'{username} > {decrypted_message}')
