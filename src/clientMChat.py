@@ -1,6 +1,8 @@
 import socket
 import select
 import errno
+import sys
+from cryptography.fernet import Fernet
 
 HEADER_LENGTH = 10
 
@@ -32,11 +34,13 @@ while True:
 
     # If message is not empty - send it
     if message:
-
+        key = Fernet.generate_key()
+        cipher_suite = Fernet(key)
         # Encode message to bytes, prepare header and convert to bytes, like for username above, then send
         message = message.encode('utf-8')
-        message_header = f"{len(message):<{HEADER_LENGTH}}".encode('utf-8')
-        client_socket.send(message_header + message)
+        encypted_message = cipher_suite.encrypt(message)
+        message_header = f"{len(encypted_message):<{HEADER_LENGTH}}".encode('utf-8')
+        client_socket.send(message_header + encypted_message)
 
     try:
         # Now we want to loop over received messages (there might be more than one) and print them
