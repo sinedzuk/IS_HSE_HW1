@@ -1,6 +1,11 @@
 import socket
 import select
 import errno
+import sys
+
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.backends import default_backend
 
 HEADER_LENGTH = 10
 
@@ -25,6 +30,23 @@ username = my_username.encode('utf-8')
 username_header = f"{len(username):<{HEADER_LENGTH}}".encode('utf-8')
 client_socket.send(username_header + username)
 
+# Загрузка приватного ключа из файла
+with open('PrivateKey.txt', 'rb') as private_key_file:
+    private_key_pem = private_key_file.read()
+    private_key = serialization.load_pem_private_key(
+        private_key_pem,
+        password=None,  # Если приватный ключ защищен паролем, укажите его здесь
+        backend=default_backend()
+    )
+
+#Загрузка публичного ключа из файла
+with open('PublicKey.txt', 'rb') as public_key_file:
+    public_key_pem = public_key_file.read()
+    public_key = serialization.load_pem_public_key(
+        public_key_pem,
+        backend=default_backend()
+    )
+
 while True:
 
     # Wait for user to input a message
@@ -35,8 +57,17 @@ while True:
 
         # Encode message to bytes, prepare header and convert to bytes, like for username above, then send
         message = message.encode('utf-8')
-        message_header = f"{len(message):<{HEADER_LENGTH}}".encode('utf-8')
-        client_socket.send(message_header + message)
+        # Шифрование данных
+        encrypted_message = public_key.encrypt(
+            message,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )
+        message_header = f"{len(encrypted_message):<{HEADER_LENGTH}}".encode('utf-8')
+        client_socket.send(message_header + encrypted_message)
 
     try:
         # Now we want to loop over received messages (there might be more than one) and print them
@@ -59,10 +90,20 @@ while True:
             # Now do the same for message (as we received username, we received whole message, there's no need to check if it has any length)
             message_header = client_socket.recv(HEADER_LENGTH)
             message_length = int(message_header.decode('utf-8').strip())
-            message = client_socket.recv(message_length).decode('utf-8')
+            message = client_socket.recv(message_length)
+
+            # Дешифрование данных
+            decrypted_message = private_key.decrypt(
+                message,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
 
             # Print message
-            print(f'{username} > {message}')
+            print(f"{username} > {decrypted_message.decode('utf-8')}")
 
     except IOError as e:
         # This is normal on non blocking connections - when there are no incoming data error is going to be raised
