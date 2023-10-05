@@ -1,6 +1,9 @@
 import socket
 import select
 import errno
+import sys
+
+from cryptography.fernet import Fernet
 
 HEADER_LENGTH = 10
 
@@ -25,6 +28,11 @@ username = my_username.encode('utf-8')
 username_header = f"{len(username):<{HEADER_LENGTH}}".encode('utf-8')
 client_socket.send(username_header + username)
 
+with open("fernet_key", "rb") as key_file:
+    key = key_file.read()
+fernet_key = Fernet(key=key)
+
+
 while True:
 
     # Wait for user to input a message
@@ -35,8 +43,9 @@ while True:
 
         # Encode message to bytes, prepare header and convert to bytes, like for username above, then send
         message = message.encode('utf-8')
-        message_header = f"{len(message):<{HEADER_LENGTH}}".encode('utf-8')
-        client_socket.send(message_header + message)
+        encypted_message = fernet_key.encrypt(message)
+        message_header = f"{len(encypted_message):<{HEADER_LENGTH}}".encode('utf-8')
+        client_socket.send(message_header + encypted_message)
 
     try:
         # Now we want to loop over received messages (there might be more than one) and print them
@@ -60,9 +69,9 @@ while True:
             message_header = client_socket.recv(HEADER_LENGTH)
             message_length = int(message_header.decode('utf-8').strip())
             message = client_socket.recv(message_length).decode('utf-8')
-
+            decrypted_message = fernet_key.decrypt(message).decode('utf-8')
             # Print message
-            print(f'{username} > {message}')
+            print(f'{username} > {decrypted_message}')
 
     except IOError as e:
         # This is normal on non blocking connections - when there are no incoming data error is going to be raised
